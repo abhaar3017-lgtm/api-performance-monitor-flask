@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Performance Monitor</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body { font-family: Arial; background: #111827; color: #f9fafb; margin: 0; padding: 20px; }
+    .container { max-width: 1200px; margin: auto; }
+    .card { background: #1f2937; padding: 20px; border-radius: 12px; margin: 15px 0; border: 1px solid #374151; }
+        input { padding: 12px; margin: 5px; border: 1px solid #4b5563; background: #111827; color: white; border-radius: 8px; }
+        button { background: #3b82f6; color: white; padding: 12px 20px; border: none; border-radius: 8px; cursor: pointer; }
+    .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; }
+    .metric { background: #374151; padding: 15px; border-radius: 8px; text-align: center; }
+    .metric h3 { margin: 5px 0; font-size: 22px; }
+    .UP { color: #22c55e; }
+    .DOWN { color: #ef4444; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📊 API Performance Monitor</h1>
+
+        <div class="card">
+            <h3>Add New API</h3>
+            <form method="POST">
+                <input type="text" name="name" placeholder="API Name: GitHub API" required>
+                <input type="url" name="url" placeholder="https://api.github.com" required style="width: 300px;">
+                <input type="number" name="interval" placeholder="Interval sec" value="30" required style="width: 120px;">
+                <button type="submit">Monitor</button>
+            </form>
+        </div>
+
+        {% for api in apis %}
+        <div class="card">
+            <h2>{{ api[1] }} <small style="color: #9ca3af;">{{ api[2] }}</small></h2>
+            <div class="grid">
+                <div class="metric"><p>Current Status</p><h3 id="status-{{ api[0] }}">-</h3></div>
+                <div class="metric"><p>Avg Response</p><h3 id="avg-{{ api[0] }}">0 ms</h3></div>
+                <div class="metric"><p>Uptime</p><h3 id="uptime-{{ api[0] }}">0%</h3></div>
+                <div class="metric"><p>Checks: {{ api[3] }}s</p><h3>Interval</h3></div>
+            </div>
+            <canvas id="chart-{{ api[0] }}" style="margin-top: 20px; max-height: 250px;"></canvas>
+        </div>
+        {% endfor %}
+    </div>
+
+    <script>
+        {% for api in apis %}
+        (function() {
+            const apiId = {{ api[0] }};
+            const chart = new Chart(document.getElementById('chart-' + apiId), {
+                type: 'line',
+                data: { 
+                    labels: [], 
+                    datasets: [{ 
+                        label: 'Response Time ms', 
+                        data: [], 
+                        borderColor: '#3b82f6', 
+                        tension: 0.3, 
+                        fill: true,
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)'
+                    }] 
+                },
+                options: {
+                    scales: { 
+                        y: { beginAtZero: true, ticks: { color: '#9ca3af' } }, 
+                        x: { ticks: { color: '#9ca3af' } } 
+                    },
+                    plugins: { legend: { labels: { color: '#f9fafb' } } }
+                }
+            });
+
+            function updateData() {
+                fetch('/data/' + apiId)
+                   .then(r => r.json())
+                   .then(d => {
+                        document.getElementById('status-' + apiId).innerHTML =
+                            '<span class="' + d.current_status + '">' + d.current_status + '</span>';
+                        document.getElementById('avg-' + apiId).textContent = d.avg_time + ' ms';
+                        document.getElementById('uptime-' + apiId).textContent = d.uptime + '%';
+                        chart.data.labels = d.labels;
+                        chart.data.datasets[0].data = d.times;
+                        chart.update();
+                    })
+                   .catch(err => console.log('Error:', err));
+            }
+            setInterval(updateData, 5000);
+            updateData();
+        })();
+        {% endfor %}
+    </script>
+</body>
+</html>
